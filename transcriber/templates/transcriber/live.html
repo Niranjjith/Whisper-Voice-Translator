@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live English Speech to Text</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans flex flex-col items-center py-10 px-4 min-h-screen">
+
+  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-md p-8">
+    <h1 class="text-3xl font-bold text-blue-600 text-center mb-6">🎤 English Speech to Text</h1>
+
+    <!-- Wave Animation Canvas -->
+    <canvas id="waveform" class="w-full h-24 mb-4 rounded-lg bg-black"></canvas>
+
+    <!-- Buttons -->
+    <div class="flex flex-wrap gap-4 justify-center mb-6">
+      <button id="start" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl">Start</button>
+      <button id="stop" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-xl" disabled>Stop</button>
+      <button id="clear" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-xl">Clear</button>
+    </div>
+
+    <!-- Transcript Display -->
+    <h2 class="text-lg font-semibold mb-2">Transcript (English Only):</h2>
+    <div id="transcript" class="bg-gray-50 border p-4 rounded-xl h-64 overflow-y-auto">
+      <p class="text-sm text-gray-400">Transcript will appear here...</p>
+    </div>
+  </div>
+
+  <script>
+    let mediaRecorder, audioCtx, analyser, micStream;
+    let transcriptDiv = document.getElementById("transcript");
+    const canvas = document.getElementById("waveform");
+    const ctx = canvas.getContext("2d");
+
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
+    const clearBtn = document.getElementById("clear");
+
+    // Setup audio visualizer
+    function setupWaveform(stream) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      micStream = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      micStream.connect(analyser);
+
+      analyser.fftSize = 2048;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const draw = () => {
+        requestAnimationFrame(draw);
+        analyser.getByteTimeDomainData(dataArray);
+
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#00ff00";
+        ctx.beginPath();
+
+        let sliceWidth = canvas.width * 1.0 / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          let v = dataArray[i] / 128.0;
+          let y = v * canvas.height / 2;
+
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+
+          x += sliceWidth;
+        }
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+      };
+
+      draw();
+    }
+
+    startBtn.onclick = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setupWaveform(stream);
+
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.start(5000);
+
+      mediaRecorder.ondataavailable = async (e) => {
+        const formData = new FormData();
+        formData.append("audio", e.data, "chunk.webm");
+
+        const res = await fetch("/transcribe-chunk/", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.text) {
+          if (transcriptDiv.innerText.includes("Transcript will appear")) {
+            transcriptDiv.innerHTML = "";
+          }
+          const p = document.createElement("p");
+          p.textContent = data.text;
+          transcriptDiv.appendChild(p);
+          transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+        }
+      };
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
+
+    stopBtn.onclick = () => {
+      mediaRecorder.stop();
+      if (audioCtx) {
+        audioCtx.close();
+      }
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    };
+
+    clearBtn.onclick = () => {
+      transcriptDiv.innerHTML = '<p class="text-sm text-gray-400">Transcript will appear here...</p>';
+    };
+  </script>
+</body>
+</html>
