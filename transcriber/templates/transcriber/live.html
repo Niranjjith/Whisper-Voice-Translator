@@ -29,99 +29,120 @@
   </div>
 
   <script>
-    let mediaRecorder, audioCtx, analyser, micStream;
-    let transcriptDiv = document.getElementById("transcript");
-    const canvas = document.getElementById("waveform");
-    const ctx = canvas.getContext("2d");
+  let mediaRecorder, audioCtx, analyser, micStream;
+  const transcriptDiv = document.getElementById("transcript");
+  const canvas = document.getElementById("waveform");
+  const ctx = canvas.getContext("2d");
 
-    const startBtn = document.getElementById("start");
-    const stopBtn = document.getElementById("stop");
-    const clearBtn = document.getElementById("clear");
+  const startBtn = document.getElementById("start");
+  const stopBtn = document.getElementById("stop");
+  const clearBtn = document.getElementById("clear");
 
-    // Setup audio visualizer
-    function setupWaveform(stream) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      micStream = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      micStream.connect(analyser);
+  function setupWaveform(stream) {
+    audioCtx = new AudioContext(); // ✅ Standards-compliant
+    micStream = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    micStream.connect(analyser);
 
-      analyser.fftSize = 2048;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+    analyser.fftSize = 2048;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
 
-      const draw = () => {
-        requestAnimationFrame(draw);
-        analyser.getByteTimeDomainData(dataArray);
+    const draw = () => {
+      if (!analyser) return;
 
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#00ff00";
-        ctx.beginPath();
+      requestAnimationFrame(draw);
+      analyser.getByteTimeDomainData(dataArray);
 
-        let sliceWidth = canvas.width * 1.0 / bufferLength;
-        let x = 0;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#00ff00";
+      ctx.beginPath();
 
-        for (let i = 0; i < bufferLength; i++) {
-          let v = dataArray[i] / 128.0;
-          let y = v * canvas.height / 2;
+      let sliceWidth = canvas.width / bufferLength;
+      let x = 0;
 
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+      for (let i = 0; i < bufferLength; i++) {
+        let v = dataArray[i] / 128.0;
+        let y = (v * canvas.height) / 2;
 
-          x += sliceWidth;
-        }
-        ctx.lineTo(canvas.width, canvas.height / 2);
-        ctx.stroke();
-      };
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
 
-      draw();
-    }
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+    };
 
-    startBtn.onclick = async () => {
+    draw();
+  }
+
+  startBtn.onclick = async () => {
+    try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setupWaveform(stream);
 
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.start(5000);
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm; codecs=opus'
+      });
+
+      mediaRecorder.start(5000); // Record in 5s chunks
 
       mediaRecorder.ondataavailable = async (e) => {
-        const formData = new FormData();
-        formData.append("audio", e.data, "chunk.webm");
+        if (e.data.size > 0) {
+          const formData = new FormData();
+          formData.append("audio", e.data, "chunk.webm");
 
-        const res = await fetch("/transcribe-chunk/", {
-          method: "POST",
-          body: formData
-        });
+          try {
+            const res = await fetch("/transcribe-chunk/", {
+              method: "POST",
+              body: formData
+            });
 
-        const data = await res.json();
-        if (data.text) {
-          if (transcriptDiv.innerText.includes("Transcript will appear")) {
-            transcriptDiv.innerHTML = "";
+            const data = await res.json();
+            if (data.text) {
+              if (transcriptDiv.innerText.includes("Transcript will appear")) {
+                transcriptDiv.innerHTML = "";
+              }
+
+              const p = document.createElement("p");
+              p.textContent = data.text;
+              transcriptDiv.appendChild(p);
+              transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+            }
+          } catch (fetchErr) {
+            console.error("Transcription request failed:", fetchErr);
           }
-          const p = document.createElement("p");
-          p.textContent = data.text;
-          transcriptDiv.appendChild(p);
-          transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
         }
       };
 
       startBtn.disabled = true;
       stopBtn.disabled = false;
-    };
 
-    stopBtn.onclick = () => {
+    } catch (err) {
+      console.error("Microphone access error:", err);
+      alert("Unable to access microphone.");
+    }
+  };
+
+  stopBtn.onclick = () => {
+    if (mediaRecorder?.state !== "inactive") {
       mediaRecorder.stop();
-      if (audioCtx) {
-        audioCtx.close();
-      }
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    };
+    }
 
-    clearBtn.onclick = () => {
-      transcriptDiv.innerHTML = '<p class="text-sm text-gray-400">Transcript will appear here...</p>';
-    };
-  </script>
+    if (audioCtx?.state === "running") {
+      audioCtx.close();
+    }
+
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  };
+
+  clearBtn.onclick = () => {
+    transcriptDiv.innerHTML = '<p class="text-sm text-gray-400">Transcript will appear here...</p>';
+  };
+</script>
+
 </body>
 </html>
