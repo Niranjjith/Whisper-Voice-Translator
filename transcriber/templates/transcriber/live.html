@@ -27,7 +27,9 @@
       <h1 class="text-3xl font-bold text-blue-700 dark:text-darkaccent flex items-center gap-2">
         <span>🎤</span> Speech to Text
       </h1>
-      <!-- Dark Mode Toggle -->
+
+      <!------------------------------------ Dark Mode Toggle --------------------------->
+
       <label class="flex items-center cursor-pointer gap-2">
         <span class="text-sm text-gray-500 dark:text-gray-300">Dark Mode</span>
         <div class="relative">
@@ -39,17 +41,20 @@
       </label>
     </div>
 
-    <!-- Waveform Canvas -->
+    <!---------------------------- Waveform Canvas ---------------------------->
+
     <canvas id="waveform" class="w-full h-28 mb-6 rounded-xl bg-black"></canvas>
 
-    <!-- Controls -->
+    <!------------------------------ Controls --------------------------------->
+
     <div class="flex flex-wrap gap-4 justify-center mb-6">
       <button id="start" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-full transition dark:bg-green-600 dark:hover:bg-green-700">Start</button>
       <button id="stop" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-full transition dark:bg-green-700 dark:hover:bg-green-800" disabled>Stop</button>
       <button id="clear" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-full transition dark:bg-red-700 dark:hover:bg-red-800">Clear</button>
     </div>
 
-    <!-- Transcript -->
+    <!----------------------------- Transcript ----------------------------------->
+
     <h2 class="text-lg font-semibold text-blue-600 dark:text-green-400 mb-2">Transcript (English Only):</h2>
     <div id="transcript" class="bg-gray-50 dark:bg-slate-700 border border-blue-100 dark:border-slate-500 p-4 rounded-2xl h-64 overflow-y-auto text-sm text-gray-700 dark:text-green-100">
       <p class="text-gray-400 dark:text-green-300">Transcript will appear here...</p>
@@ -162,6 +167,7 @@
     toggle.addEventListener("change", () => {
       document.documentElement.classList.toggle("dark");
     });
+    
   </script>
 </body>
 </html>
